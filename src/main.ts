@@ -17,9 +17,8 @@ async function bootstrap() {
       },
     });
 
-  // Start both the HTTP server and the TCP microservice
-  await app.listen(3001); // HTTP on port 3000
-  await microservice.listen(); // TCP on port 3001
+  await app.listen(3001);
+  await microservice.listen();
 
   console.log('HTTP server is running on port 3001');
   console.log('TCP subscriber is running on port 3001');

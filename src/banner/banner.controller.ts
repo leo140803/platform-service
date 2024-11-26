@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpException,
+  Inject,
   Param,
   Patch,
   Post,
@@ -21,10 +22,15 @@ import { ImageFileInterceptorForBanner } from 'src/common/multer.config';
 import { v4 as uuidv4 } from 'uuid';
 import { join, extname } from 'path';
 import * as fs from 'fs';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 
 @Controller('/api/banner')
 export class BannerController {
-  constructor(private readonly bannerService: BannerService) {}
+  constructor(
+    private readonly bannerService: BannerService,
+    @Inject('MARKETPLACE_SERVICE') private readonly client: ClientProxy,
+  ) {}
 
   @Get()
   async findAll(): Promise<WebResponse<BannerResponse[]>> {
@@ -85,6 +91,25 @@ export class BannerController {
       status: statusBool,
       image_url: imageUrl,
     });
+
+    const dataToMicroService = {
+      banner_id: bannerId,
+      title: body.title,
+      description: body.description,
+      status: statusBool,
+      image_url: imageUrl,
+      file_buffer: image?.buffer,
+      file_name: uniqueFileName,
+    };
+
+    try {
+      const response = await firstValueFrom(
+        this.client.send('create_banner', dataToMicroService),
+      );
+      console.log(response);
+    } catch (error) {
+      console.error(error.message);
+    }
 
     return {
       data: banner,
