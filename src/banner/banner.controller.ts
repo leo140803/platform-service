@@ -172,6 +172,38 @@ export class BannerController {
       image_url: updateData.image_url,
     });
 
+    console.log('udah disini');
+    let dataToMicroService;
+    if (image) {
+      dataToMicroService = {
+        banner_id: id,
+        title: updateData.title,
+        description: updateData.description,
+        status: updateData.status,
+        file_buffer: image.buffer,
+        file_name: uniqueFileName,
+        image_url: imageUrl,
+      };
+    } else {
+      dataToMicroService = {
+        banner_id: id,
+        title: updateData.title,
+        description: updateData.description,
+        status: updateData.status,
+      };
+    }
+
+    console.log(dataToMicroService);
+
+    try {
+      const response = await firstValueFrom(
+        this.client.send('update_banner', dataToMicroService),
+      );
+      console.log('RESPONSE FROM SUBSCRIBER --> ' + response);
+    } catch (error) {
+      console.log('ERROR IN MICROSERVICE --> ' + error.message);
+    }
+
     return {
       data: updatedBanner,
     };
@@ -188,6 +220,14 @@ export class BannerController {
       } else {
         console.warn('File not found:', filePath);
       }
+    }
+    try {
+      const response = await firstValueFrom(
+        this.client.send('delete_banner', banner.banner_id),
+      );
+      console.log('RESPONSE FROM SUBSCRIBER --> ' + response);
+    } catch (error) {
+      console.log('ERROR IN MICROSERVICE --> ' + error.message);
     }
     return {
       data: banner,
