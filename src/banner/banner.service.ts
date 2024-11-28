@@ -9,13 +9,47 @@ import {
   BannerUpdateRequestService,
 } from 'src/model/banner.model';
 import { BannerValidation } from './banner.validation';
+import * as fs from 'fs';
+import { join, extname } from 'path';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+import { v4 as uuidv4 } from 'uuid';
+
 @Injectable()
 export class BannerService {
   constructor(
     @Inject(WINSTON_MODULE_NEST_PROVIDER) private logger: Logger,
     private readonly prisma: PrismaService,
     private validationService: ValidationService,
+    @Inject('MARKETPLACE_SERVICE') private readonly client: ClientProxy,
   ) {}
+
+  private generateUniqueFileName(originalName: string): string {
+    return `banner-${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(originalName)}`;
+  }
+
+  private saveImageToDisk(
+    image: Express.Multer.File,
+    uniqueFileName: string,
+  ): string {
+    const uploadPath = join(__dirname, '../../uploads/banner', uniqueFileName);
+    if (!fs.existsSync(join(__dirname, '../../uploads/banner'))) {
+      fs.mkdirSync(join(__dirname, '../../uploads/banner'), {
+        recursive: true,
+      });
+    }
+    fs.writeFileSync(uploadPath, image.buffer);
+    return `/uploads/banner/${uniqueFileName}`;
+  }
+
+  private async handleMicroserviceCommunication(event: string, data: any) {
+    try {
+      const response = await firstValueFrom(this.client.send(event, data));
+      console.log('Microservice response:', response);
+    } catch (error) {
+      console.error(`Error in microservice: ${error.message}`);
+    }
+  }
 
   toBannerResponse(banner: Banner): BannerResponse {
     return {
@@ -59,20 +93,39 @@ export class BannerService {
     return this.toBannerResponse(banner);
   }
 
-  async create(data: BannerRequestService): Promise<BannerResponse> {
-    const createRequest = this.validationService.validate(
-      BannerValidation.CREATE,
-      data,
-    );
+  async create(
+    data: BannerRequestService,
+    image: Express.Multer.File,
+  ): Promise<BannerResponse> {
+    const bannerId = uuidv4();
+    const statusBool = data.status === 'true';
+    const uniqueFileName = this.generateUniqueFileName(image.originalname);
+    const imageUrl = this.saveImageToDisk(image, uniqueFileName);
+
     const banner = await this.prisma.banner.create({
       data: {
-        banner_id: data.banner_id,
-        title: createRequest.title,
-        description: createRequest.description,
-        status: createRequest.status,
-        image_url: data.image_url,
+        banner_id: bannerId,
+        title: data.title,
+        description: data.description,
+        status: statusBool,
+        image_url: imageUrl,
       },
     });
+
+    const dataToMicroService = {
+      banner_id: bannerId,
+      title: data.title,
+      description: data.description,
+      status: statusBool,
+      image_url: imageUrl,
+      file_buffer: image.buffer,
+      file_name: uniqueFileName,
+    };
+
+    await this.handleMicroserviceCommunication(
+      'create_banner',
+      dataToMicroService,
+    );
 
     return this.toBannerResponse(banner);
   }
@@ -80,31 +133,68 @@ export class BannerService {
   async update(
     banner_id: string,
     data: BannerUpdateRequestService,
+    image?: Express.Multer.File,
   ): Promise<BannerResponse> {
     const banner = await this.findOne(banner_id);
     const updateRequest = this.validationService.validate(
       BannerValidation.UPDATE,
       data,
     );
-    const update = await this.prisma.banner.update({
+
+    const updateData: any = {
+      title: updateRequest.title ?? banner.title,
+      description: updateRequest.description ?? banner.description,
+      status: updateRequest.status == 'true' ? true : false,
+      image_url: banner.image_url,
+    };
+
+    if (image) {
+      const uniqueFileName = this.generateUniqueFileName(image.originalname);
+      const imageUrl = this.saveImageToDisk(image, uniqueFileName);
+      updateData.image_url = imageUrl;
+    }
+
+    const updatedBanner = await this.prisma.banner.update({
       where: { banner_id },
-      data: {
-        title: updateRequest.title ?? banner.title,
-        description: updateRequest.description ?? banner.description,
-        status: updateRequest.status ?? banner.status,
-        image_url: data.image_url ?? banner.image_url,
-      },
+      data: updateData,
     });
-    return this.toBannerResponse(update);
+
+    const dataToMicroService = {
+      banner_id: banner_id,
+      title: updateData.title,
+      description: updateData.description,
+      status: updateData.status,
+      image_url: updateData.image_url,
+      file_buffer: image?.buffer,
+      file_name: image ? updateData.image_url.split('/').pop() : undefined,
+    };
+
+    await this.handleMicroserviceCommunication(
+      'update_banner',
+      dataToMicroService,
+    );
+
+    return this.toBannerResponse(updatedBanner);
   }
 
   async remove(banner_id: string): Promise<BannerResponse> {
-    await this.findOne(banner_id);
+    const banner = await this.findOne(banner_id);
+    if (banner.image_url) {
+      const filePath = join(__dirname, '../../', banner.image_url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log('Deleted file:', filePath);
+      } else {
+        console.warn('File not found:', filePath);
+      }
+    }
+
     const deleteBanner = await this.prisma.banner.delete({
-      where: {
-        banner_id: banner_id,
-      },
+      where: { banner_id },
     });
+
+    await this.handleMicroserviceCommunication('delete_banner', banner_id);
+
     return this.toBannerResponse(deleteBanner);
   }
 }

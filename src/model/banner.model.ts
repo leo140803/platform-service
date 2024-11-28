@@ -11,7 +11,7 @@ export class BannerRequestService {
   title: string;
   image_url?: string;
   description: string;
-  status: boolean;
+  status: string;
 }
 
 export class BannerResponse {

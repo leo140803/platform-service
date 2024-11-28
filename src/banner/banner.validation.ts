@@ -10,6 +10,6 @@ export class BannerValidation {
   static readonly UPDATE: ZodType = z.object({
     title: z.string().min(1).max(255).optional(),
     description: z.string().min(1).max(255).optional(),
-    status: z.boolean().optional(),
+    status: z.string().optional(),
   });
 }
