@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { BannerService } from './banner.service';
@@ -18,7 +19,9 @@ import {
 } from 'src/model/banner.model';
 import { WebResponse } from 'src/model/web.model';
 import { ImageFileInterceptorForBanner } from 'src/common/multer.config';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('/api/banner')
 export class BannerController {
   constructor(private readonly bannerService: BannerService) {}

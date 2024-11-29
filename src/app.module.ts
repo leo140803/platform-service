@@ -7,6 +7,7 @@ import { BannerModule } from './banner/banner.module';
 import { GoldpriceModule } from './goldprice/goldprice.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { FaqModule } from './faq/faq.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { FaqModule } from './faq/faq.module';
     GoldpriceModule,
     ScheduleModule.forRoot(),
     FaqModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],

@@ -14,7 +14,7 @@ export class FaqService {
     private validationService: ValidationService,
   ) {}
 
-  toFaqResponse(faq: Faq): FaqResponse {
+  private toFaqResponse(faq: Faq): FaqResponse {
     return {
       faq_id: faq.faq_id,
       question: faq.question,
@@ -25,13 +25,16 @@ export class FaqService {
     };
   }
 
+  private async validateFaqData(data: FaqRequest): Promise<FaqRequest> {
+    return this.validationService.validate(FaqValidation.CREATE, data);
+  }
+
   async findAll(): Promise<FaqResponse[]> {
     const faqs = await this.prisma.faq.findMany();
-    if (faqs.length == 0) {
-      this.logger.log('FAQS not found!');
+    if (faqs.length === 0) {
       throw new HttpException('FAQS not found!', 404);
     }
-    return faqs.map((faq) => this.toFaqResponse(faq));
+    return faqs.map(this.toFaqResponse);
   }
 
   async findOne(faq_id: string): Promise<FaqResponse> {
@@ -39,32 +42,28 @@ export class FaqService {
     if (!faq) {
       throw new HttpException('FAQ not found!', 404);
     }
-
     return this.toFaqResponse(faq);
   }
+
   async findByType(type: string): Promise<FaqResponse[]> {
     const faqs = await this.prisma.faq.findMany({
       where: { type: parseInt(type, 10) },
     });
-    if (faqs.length == 0) {
+    if (faqs.length === 0) {
       throw new HttpException('FAQ not found!', 404);
     }
-
-    return faqs.map((faq) => this.toFaqResponse(faq));
+    return faqs.map(this.toFaqResponse);
   }
 
   async createFaq(data: FaqRequest): Promise<FaqResponse> {
-    const createRequest = this.validationService.validate(
-      FaqValidation.CREATE,
-      data,
-    );
+    const validatedData = await this.validateFaqData(data);
 
     const faq = await this.prisma.faq.create({
       data: {
-        faq_id: data.faq_id,
-        question: createRequest.question,
-        answer: createRequest.answer,
-        type: createRequest.type,
+        faq_id: validatedData.faq_id,
+        question: validatedData.question,
+        answer: validatedData.answer,
+        type: validatedData.type,
       },
     });
 
@@ -73,32 +72,32 @@ export class FaqService {
 
   async update(faq_id: string, data: FaqEditRequest): Promise<FaqResponse> {
     const faq = await this.findOne(faq_id);
-    const updateRequest = await this.validationService.validate(
+
+    const validatedData = await this.validationService.validate(
       FaqValidation.CREATE,
       data,
     );
 
-    const update = await this.prisma.faq.update({
+    const updatedFaq = await this.prisma.faq.update({
       where: { faq_id },
       data: {
-        question: updateRequest.question ?? faq.question,
-        answer: updateRequest.answer ?? faq.answer,
-        type: updateRequest.type ?? faq.type,
+        question: validatedData.question ?? faq.question,
+        answer: validatedData.answer ?? faq.answer,
+        type: validatedData.type ?? faq.type,
         updated_at: new Date(),
       },
     });
 
-    return this.toFaqResponse(update);
+    return this.toFaqResponse(updatedFaq);
   }
 
   async remove(faq_id: string): Promise<FaqResponse> {
     await this.findOne(faq_id);
-    const deleteFaq = await this.prisma.faq.delete({
-      where: {
-        faq_id,
-      },
+
+    const deletedFaq = await this.prisma.faq.delete({
+      where: { faq_id },
     });
 
-    return this.toFaqResponse(deleteFaq);
+    return this.toFaqResponse(deletedFaq);
   }
 }

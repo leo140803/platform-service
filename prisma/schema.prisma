@@ -47,3 +47,11 @@ model Faq {
 
   @@map("faq")
 }
+
+model Admin {
+  admin_id String @id @default(uuid()) @db.Uuid
+  username String @unique @db.VarChar(50)
+  password String @db.VarChar(255)
+
+  @@map("admin")
+}
